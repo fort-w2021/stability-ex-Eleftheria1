@@ -33,7 +33,7 @@ create the paths out of the built data structure
 end
 
 top down stil:
-```{r}
+```{r, eval=FALSE}
 get_stability_paths <- function(model, data, all_lambdas, resampling_options) {
   selected <- list()
   for (lambda_ind in seq_along(all_lambdas)) {
@@ -71,6 +71,7 @@ Schreiben Sie die fehlenden Funktionen
 
 
 ```{r}
+# Samples indices without replacement given the number of rows of the original data set and a fraction of the original size to sample. (for uneven nrows the function samples ceiling(n*fraction) samples) Moreover one can supply a strata vector of the size nrows to manage for example unbalanced data problems. Output: vector of sampled indices.
 sample_without_replacement <- function(nrows, strata = NULL, fraction = 0.5) {
   if (is.null(strata)) {
     return(sample(nrows, ceiling(fraction * nrows), replace = FALSE))
@@ -83,7 +84,7 @@ sample_without_replacement <- function(nrows, strata = NULL, fraction = 0.5) {
   )
   as.vector(unlist(rows))
 }
-
+# finds variables which get selected
 get_selected <- function(new_model) {
   selection_matrix <- summary(new_model)$which
   # remove intercept column (because always true)
@@ -91,6 +92,7 @@ get_selected <- function(new_model) {
   # add row for nullmodel
   rbind(rep(FALSE, ncol(selection_matrix)), selection_matrix)
 }
+# average elementwise over the input list of selection matrices -> output a matrix with same dimensions as the elements of the input list (interpretation estimated selection probabilities)
 make_paths <- function(selected) {
   # convert list to array
   selection_colnames <- colnames(selected[[1]])
