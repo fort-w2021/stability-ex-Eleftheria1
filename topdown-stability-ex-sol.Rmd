@@ -9,8 +9,48 @@ a)  Lesen und verstehen Sie Sections 1, 2 und 5 des oben verlinkten Papers. Igno
 b) Überprüpfen Sie ihr Verständnis. Betrachten Sie dazu den linken und den mittleren Plot in Figure 1 auf Seite 5 oben. 
 Was genau repräsentiert die horizontale Achse ($\lambda$)? Was repräsentieren jeweils die vertikalen Achsen ($\beta$ bzw. $\Pi$)?  Warum fangen in beiden Plots alle Pfade in (1.0, 0.0) an?
 
-b) Fassen Sie die Grundidee des Stability Selection Algorithmus in eigenen Worten zusammen. Was sind grob die einzelnen Schritte des Algorithmus um die "stability paths" zu berechnen?  
+
+- λ gibt den grad der penalisierung an. dabei steht 0 für gar nicht penalisieren, es werden also alle parameter für das modellieren gewählt. 1 gibt eine volle penalisierung an, d.h. es werden überhaupt keine parameter für das modellieren gewählt. deswegen werden hier auch alle auf null geschätzt (fallenden linien in (1.0, 0.0)). 
+
+- β gibt die werte der geschätzten koeffizienten an.
+
+- Π gibt die wahrscheinlichkeiten dafür an, dass die Variable für dieses λ ausgewählt wird.
+
+
+
+
+c) Fassen Sie die Grundidee des Stability Selection Algorithmus in eigenen Worten zusammen. Was sind grob die einzelnen Schritte des Algorithmus um die "stability paths" zu berechnen?  
 Erstellen Sie eine erste eigene Skizze einer Implementation des Algorithmus in Pseudo-Code, in dem in der Vorlesung besprochenen Top-Down-Stil. 
+
+Die zentrale Annahme ist, dass eine Variable wichtig ist, falls sie von einem festen Model (mit integrierter Regularisierung) trotz wechselnden Trainingsdaten und möglicherweise unterschiedlichen Werten eines Regularisierungsparameters mit hoher Wahrscheinlichkeit gewählt wird. Daraus resultieren dann die folgenden Schritte:
+start
+for all lambdas do
+  do ... times 
+    subsample from full data
+    fit model on subsample
+    get information about selected variables and save them in some kind of data structure
+create the paths out of the built data structure
+end
+
+top down stil:
+```{r}
+get_stability_paths <- function(model, data, all_lambdas, resampling_options) {
+  selected <- list()
+  for (lambda_ind in seq_along(all_lambdas)) {
+    selected_lambda_fix <- list()
+    for (i in 1:resampling_options$reps) {
+      new_data <- resample(data, resampling_options)
+      new_model <- refit(model, all_lambdas[lambda_ind], new_data)
+      selected_lambda_fix[[i]] <- get_selected(new_model)
+    }
+    selected[[lambda_ind]] <- selected_lambda_fix
+  }
+
+  stability_paths <- make_paths(selected)
+  stability_paths
+}
+```
+
 
 *Hinweis*: Falls nötig finden Sie eine einigermaßen übersichtliche Beschreibung der Grundidee von Lasso-Regression anhand derer in dem Paper die *stability selection*-Methode veranschaulicht wird z.B. in Kapitel 3.4.2 aus T. Hastie und R. Tibshirani's *Elements of Statistical Learning* [(pdf)](http://statweb.stanford.edu/~tibs/ElemStatLearn/).
 
@@ -28,15 +68,44 @@ Beachten Sie bitte dass Sie eventuell noch die Pakete `{leaps}` und `{ElemStatLe
 ## Stabil, Brudi: Resampling
 
 Schreiben Sie die fehlenden Funktionen 
-```r
+
+
+```{r}
 sample_without_replacement <- function(nrows, strata = NULL, fraction = 0.5) {
-  # ??
+  if (is.null(strata)) {
+    return(sample(nrows, ceiling(fraction * nrows), replace = FALSE))
+  }
+  rows <- tapply(
+    X = seq_len(nrows), INDEX = strata,
+    FUN = function(x) {
+      sample(x, ceiling(length(x) * fraction))
+    }
+  )
+  as.vector(unlist(rows))
 }
+
 get_selected <- function(new_model) {
-  # ??
+  selection_matrix <- summary(new_model)$which
+  # remove intercept column (because always true)
+  selection_matrix <- selection_matrix[, -1]
+  # add row for nullmodel
+  rbind(rep(FALSE, ncol(selection_matrix)), selection_matrix)
 }
 make_paths <- function(selected) {
-  # ??
+  # convert list to array
+  selection_colnames <- colnames(selected[[1]])
+  selection_array <- array(
+    unlist(selected),
+    c(
+      dim(selected[[1]])[1],
+      dim(selected[[1]])[2],
+      length(selected)
+    )
+  )
+  # average over 3rd dimension with rowMeans as rowMeans averages over dimension dim+1
+  relative_frequencies <- rowMeans(selection_array, dims = 2)
+  colnames(relative_frequencies) <- selection_colnames
+  relative_frequencies
 }
 ```
 `get_selected` sollte für ein gegebenes Modell eine Matrix mit (max. Subsetgröße+1)$\times$(Anz. Kovariablen)
@@ -50,6 +119,7 @@ Benutzen sie `str` in Kombination mit `summary` um zu verstehen wo & wie diese I
 Überprüfen Sie Ihren Code mit folgendem Test:
 
 ```{r, code = readLines("get-stability-paths.R"), echo=FALSE}
+
 ```
 ```{r, code = readLines("stability-paths-def.R"), echo=FALSE}
 ```
@@ -64,6 +134,21 @@ die untenstehende Grafik erzeugt.
 ```{r, code = readLines("stability-plot-def.R"), echo=FALSE}
 ```
 ```{r, plot_paths_ex, fig.width=5, fig.heigth=3}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+plot_stability_paths <- function(stability_paths) {
+  as.data.frame(stability_paths) %>%
+    mutate(subsample_num = (1:dim(stability_paths)[1]) - 1) %>%
+    pivot_longer(1:dim(stability_paths)[2]) %>%
+    ggplot(aes(x = subsample_num, y = value, col = factor(name))) +
+    geom_line() +
+    scale_color_viridis_d() +
+    labs(x = "Subsample size", y = "\u03A0", col = "Variable") +
+    theme_classic()
+}
+
+
+
 plot_stability_paths(stability_paths)
 ```
-
