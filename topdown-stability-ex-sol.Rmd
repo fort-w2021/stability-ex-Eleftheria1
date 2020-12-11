@@ -144,9 +144,10 @@ plot_stability_paths <- function(stability_paths) {
     mutate(subsample_num = (1:dim(stability_paths)[1]) - 1) %>%
     pivot_longer(1:dim(stability_paths)[2]) %>%
     ggplot(aes(x = subsample_num, y = value, col = factor(name))) +
+    geom_point() +
     geom_line() +
     scale_color_viridis_d() +
-    labs(x = "Subsample size", y = "\u03A0", col = "Variable") +
+    labs(x = "# covariates", y = "\u03A0", col = "Variable") +
     theme_classic()
 }
 
